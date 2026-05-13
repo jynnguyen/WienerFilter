@@ -20,7 +20,7 @@
     desired_count:  .word 0
     buf_ptr:        .word 0
     const_N:        .word 10           
-    const_M:        .word 10           
+    const_M:        .word 10
 
     # --- Result arrays ---
     desired_signal: .space 40
@@ -49,10 +49,10 @@ main:
     
     lw      $t0, input_count
     lw      $t1, desired_count
+    lw      $t2, const_N        # expected size = 10
 
-    bne     $t0, $t1, size_error
-    sw      $t0, const_N
-    sw      $t0, const_M
+    bne     $t0, $t2, size_error   # input must equal const_N
+    bne     $t1, $t2, size_error   # desired must equal const_N
     
     jal     compute_correlation     # Step 2: gamma_xx, gamma_dx
     jal     build_toeplitz          # Step 3: matrix R_M
@@ -76,7 +76,8 @@ compute_correlation:
     sw      $ra, 0($sp)
     lw      $t8, const_N    
     lw      $t9, const_M    
-    l.s     $f20, float_10  
+    mtc1    $t8, $f20       # load const_N as float for division
+    cvt.s.w $f20, $f20
     li      $s0, 0          
 cc_k_loop:
     bge     $s0, $t9, cc_done
@@ -137,7 +138,7 @@ bt_abs_done:
     sll     $t2, $t0, 2
     add     $t1, $t1, $t2
     l.s     $f0, 0($t1)
-    li      $t3, 10
+    lw      $t3, const_M       # use const_M instead of hardcoded 10
     mul     $t4, $s0, $t3
     add     $t4, $t4, $s1
     sll     $t4, $t4, 2
@@ -160,7 +161,7 @@ gaussian_elimination:
     li      $s0, 0
 ge_fwd_i:
     bge     $s0, $t8, ge_backward
-    li      $t3, 10
+    lw      $t3, const_M       # use const_M instead of hardcoded 10
     mul     $t4, $s0, $t3
     add     $t4, $t4, $s0
     sll     $t4, $t4, 2
@@ -190,6 +191,7 @@ ge_fwd_k:
     move    $s2, $s0
 ge_fwd_j:
     bge     $s2, $t8, ge_next_k
+    lw      $t3, const_M       # use const_M instead of hardcoded 10
     mul     $t4, $s0, $t3
     add     $t4, $t4, $s2
     sll     $t4, $t4, 2
@@ -214,7 +216,8 @@ ge_next_i:
     addiu   $s0, $s0, 1
     j       ge_fwd_i
 ge_backward:
-    li      $s0, 9
+    lw      $s0, const_M
+    addiu   $s0, $s0, -1       # start from M-1 instead of hardcoded 9
 ge_back_i:
     bltz    $s0, ge_done
     la      $t6, gamma_dx
@@ -224,7 +227,7 @@ ge_back_i:
     addiu   $s1, $s0, 1
 ge_back_sum:
     bge     $s1, $t8, ge_back_div
-    li      $t3, 10
+    lw      $t3, const_M       # use const_M instead of hardcoded 10
     mul     $t4, $s0, $t3
     add     $t4, $t4, $s1
     sll     $t4, $t4, 2
@@ -240,7 +243,7 @@ ge_back_sum:
     addiu   $s1, $s1, 1
     j       ge_back_sum
 ge_back_div:
-    li      $t3, 10
+    lw      $t3, const_M       # use const_M instead of hardcoded 10
     mul     $t4, $s0, $t3
     add     $t4, $t4, $s0
     sll     $t4, $t4, 2
@@ -297,7 +300,8 @@ co_done:
 # --- Calculate MMSE ---
 compute_mmse:
     lw      $t8, const_N
-    l.s     $f20, float_10
+    mtc1    $t8, $f20       # load const_N as float for division
+    cvt.s.w $f20, $f20
     l.s     $f0, float_0
     li      $s0, 0
 cm_loop:
